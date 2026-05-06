@@ -362,7 +362,7 @@ class TestDoctorMemoryProviderSection:
             TOOLSET_REQUIREMENTS={},
         )
         monkeypatch.setitem(sys.modules, "model_tools", fake_model_tools)
-        monkeypatch.setattr("hermes_cli.config.get_env_value", lambda key: "")
+        monkeypatch.setattr("hermes_cli.config.get_env_value", lambda key: "stub" if key in ("GITHUB_TOKEN", "GH_TOKEN") else "")
 
         # Stub auth checks to avoid real API calls
         try:
