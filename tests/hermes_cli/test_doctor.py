@@ -818,13 +818,13 @@ def test_run_doctor_opencode_go_skips_invalid_models_probe(monkeypatch, tmp_path
 class TestGitHubTokenCheck:
     """Tests for GitHub token / gh auth detection in doctor."""
 
-    def test_no_token_and_not_gh_authenticated_shows_warn(self, monkeypatch, tmp_path):
+    def test_no_token_and_not_gh_authenticated_stays_quiet(self, monkeypatch, tmp_path):
         home = tmp_path / ".hermes"
         home.mkdir(parents=True, exist_ok=True)
         monkeypatch.setenv("HERMES_HOME", str(home))
         monkeypatch.setenv("PATH", "/nonexistent")  # gh not found
 
-        from hermes_cli.doctor import run_doctor, _DHH
+        from hermes_cli.doctor import run_doctor
         import io, contextlib
 
         buf = io.StringIO()
@@ -832,8 +832,8 @@ class TestGitHubTokenCheck:
             run_doctor(Namespace(fix=False))
         out = buf.getvalue()
 
-        assert "No GITHUB_TOKEN" in out
-        assert "60 req/hr" in out
+        assert "No GITHUB_TOKEN" not in out
+        assert "60 req/hr" not in out
 
     def test_token_env_present_shows_ok(self, monkeypatch, tmp_path):
         home = tmp_path / ".hermes"
