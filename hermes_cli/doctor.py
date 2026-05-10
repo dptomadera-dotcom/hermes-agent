@@ -298,7 +298,7 @@ def _build_apikey_providers_list() -> list:
     # API-key loop (with custom headers/auth). Skip their pluggable profiles
     # here so the generic Bearer-auth loop doesn't run a duplicate, broken
     # check (e.g. Anthropic native API requires x-api-key, not Bearer).
-    _dedicated_canonical = {"anthropic", "openrouter", "bedrock"}
+    _dedicated_canonical = {"anthropic", "openrouter", "bedrock", "gemini"}
     _known_canonical.update(_dedicated_canonical)
     try:
         from providers import list_providers
@@ -1381,12 +1381,61 @@ def run_doctor(args):
                 [],
             )
 
+    def _probe_gemini() -> _ConnectivityResult:
+        key = ""
+        key_var = ""
+        for ev in ("GOOGLE_API_KEY", "GEMINI_API_KEY"):
+            key = os.getenv(ev, "")
+            if key:
+                key_var = ev
+                break
+        if not key:
+            return _ConnectivityResult("Google AI Studio", [], [])
+        label = "Google AI Studio".ljust(20)
+        try:
+            import httpx
+            base = os.getenv("GEMINI_BASE_URL", "")
+            url = (base.rstrip("/") + "/models") if base else "https://generativelanguage.googleapis.com/v1beta/models"
+            headers = {
+                "x-goog-api-key": key,
+                "User-Agent": _HERMES_USER_AGENT,
+            }
+            r = httpx.get(url, headers=headers, timeout=10)
+            if r.status_code == 200:
+                return _ConnectivityResult(
+                    "Google AI Studio",
+                    [(color("✓", Colors.GREEN), label, "")],
+                    [],
+                )
+            if r.status_code == 401:
+                return _ConnectivityResult(
+                    "Google AI Studio",
+                    [(color("✗", Colors.RED), label,
+                      color("(invalid API key)", Colors.DIM))],
+                    [f"Check {key_var or 'GOOGLE_API_KEY'} in .env"],
+                )
+            return _ConnectivityResult(
+                "Google AI Studio",
+                [(color("⚠", Colors.YELLOW), label,
+                  color(f"(HTTP {r.status_code})", Colors.DIM))],
+                [],
+            )
+        except Exception as e:
+            return _ConnectivityResult(
+                "Google AI Studio",
+                [(color("⚠", Colors.YELLOW), label,
+                  color(f"({e})", Colors.DIM))],
+                [],
+            )
+
     def _probe_apikey_provider(pname, env_vars, default_url, base_env,
                                supports_health_check) -> _ConnectivityResult:
         key = ""
+        key_var = ""
         for ev in env_vars:
             key = os.getenv(ev, "")
             if key:
+                key_var = ev
                 break
         if not key:
             return _ConnectivityResult(pname, [], [])
@@ -1441,7 +1490,7 @@ def run_doctor(args):
                     pname,
                     [(color("✗", Colors.RED), label,
                       color("(invalid API key)", Colors.DIM))],
-                    [f"Check {env_vars[0]} in .env"],
+                    [f"Check {key_var or env_vars[0]} in .env"],
                 )
             return _ConnectivityResult(
                 pname,
@@ -1511,6 +1560,7 @@ def run_doctor(args):
     # Build the probe submission list in display order
     _probes.append(("OpenRouter API", _probe_openrouter))
     _probes.append(("Anthropic API", _probe_anthropic))
+    _probes.append(("Google AI Studio", _probe_gemini))
 
     global _APIKEY_PROVIDERS_CACHE
     if _APIKEY_PROVIDERS_CACHE is None:
